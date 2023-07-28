@@ -28,6 +28,7 @@ import org.apache.spark.sql.{SQLContext,SparkSession}
 import org.apache.spark.{SparkEnv, SparkContext}
 
 
+
 /** A trait to describe things that can be benchmarked. */
 trait Benchmarkable {
   @transient protected[this] val sqlSession = SparkSession.builder.getOrCreate()
@@ -85,7 +86,7 @@ trait Benchmarkable {
               mode = executionMode.toString,
               parameters = Map.empty,
               failure = Some(Failure(e.getClass.getSimpleName,
-                e.getMessage + ":\n" + e.getStackTraceString)))
+                e.getMessage + ":\n" + e.getStackTrace.mkString("\n"))))
         }
       }
     }

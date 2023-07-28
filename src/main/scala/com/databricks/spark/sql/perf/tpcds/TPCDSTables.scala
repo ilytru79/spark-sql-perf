@@ -24,8 +24,8 @@ import com.databricks.spark.sql.perf.{BlockingLineStream, DataGenerator, Table, 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 
-class DSDGEN(dsdgenDir: String) extends DataGenerator {
-  val dsdgen = s"$dsdgenDir/dsdgen"
+class DSDGEN(dsdgenDir: String,dsdgenArchive: String) extends DataGenerator {
+  var dsdgen = s"$dsdgenDir/dsdgen"
 
   def generate(sparkContext: SparkContext, name: String, partitions: Int, scaleFactor: String) = {
     val generatedData = {
@@ -34,15 +34,62 @@ class DSDGEN(dsdgenDir: String) extends DataGenerator {
           dsdgenDir
         } else if (new java.io.File(s"/$dsdgen").exists) {
           s"/$dsdgenDir"
-        } else {
-          sys.error(s"Could not find dsdgen at $dsdgen or /$dsdgen. Run install")
-        }
+        } else if (dsdgenArchive!="") {
+          val archivePath =
+          if (dsdgenArchive.contains("#")){
+            org.apache.spark.SparkFiles.get(dsdgenArchive)
+                .replaceAll(dsdgenArchive, dsdgenArchive.split("#")(1))
+                .replaceAll("[/][.][/]","/")
+          }
+          else {
+             org.apache.spark.SparkFiles.get(dsdgenArchive)
+               .replaceAll("[/][.][/]","/")
+
+          }
+
+
+          val dsdPath1 = s"$archivePath/$dsdgen".replaceAll("[/][.][/]", "/")
+          val dsdPath2 = s"$archivePath$dsdgen".replaceAll("[/][.][/]", "/")
+
+          if (new java.io.File(s"$archivePath/dsdgen").exists) {
+            this.dsdgen =  s"$archivePath/dsdgen"
+            archivePath
+          } else if (new java.io.File(s"/$archivePath/dsdgen").exists) {
+            this.dsdgen =  s"$archivePath/dsdgen"
+            s"/$archivePath"
+          }
+          else if (new java.io.File(s"$archivePath/$dsdgen"
+                        .replaceAll("[/][.][/]","/")).exists) {
+            this.dsdgen = s"$archivePath/$dsdgen".replaceAll("[/][.][/]","/")
+            s"$archivePath/$dsdgenDir".replaceAll("[/][.][/]","/")
+          }
+          else if (new java.io.File(s"$archivePath$dsdgen"
+            .replaceAll("[/][.][/]", "/")).exists) {
+            this.dsdgen = s"$archivePath$dsdgen".replaceAll("[/][.][/]", "/")
+            s"$archivePath$dsdgenDir".replaceAll("[/][.][/]", "/")
+          }
+          else {
+            val rootDir = org.apache.spark.SparkFiles.get(dsdgenArchive)
+            println(rootDir)
+            //val dir = java.nio.file.FileSystems.getDefault.getPath(rootDir)
+            //java.nio.file.Files.list(dir)
+
+            sys.error(s"Could not find xxx dsdgen at $dsdgen $rootDir and $archivePath  and $dsdPath1 and $dsdPath2 Run install")
+          }
+
+        } else
+          {
+            sys.error(s"Could not find dsdgen at $dsdgen or /$dsdgen. Run install")
+          }
 
         // Note: RNGSEED is the RNG seed used by the data generator. Right now, it is fixed to 100.
         val parallel = if (partitions > 1) s"-parallel $partitions -child $i" else ""
         val commands = Seq(
           "bash", "-c",
           s"cd $localToolsDir && ./dsdgen -table $name -filter Y -scale $scaleFactor -RNGSEED 100 $parallel")
+
+
+        // ./dsdgen -table catalog_sales -filter Y -scale 1 -RNGSEED 100
         println(commands)
         BlockingLineStream(commands)
       }
@@ -59,28 +106,29 @@ class TPCDSTables(
   dsdgenDir: String,
   scaleFactor: String,
   useDoubleForDecimal: Boolean = false,
-  useStringForDate: Boolean = false)
+  useStringForDate: Boolean = false,
+  dsdgenArchive: String = "")
   extends Tables(sqlContext, scaleFactor, useDoubleForDecimal, useStringForDate) {
   import sqlContext.implicits._
 
-  val dataGenerator = new DSDGEN(dsdgenDir)
+  val dataGenerator = new DSDGEN(dsdgenDir, dsdgenArchive)
   val tables = Seq(
     Table("catalog_sales",
       partitionColumns = "cs_sold_date_sk" :: Nil,
-      'cs_sold_date_sk          .int,
-      'cs_sold_time_sk          .int,
-      'cs_ship_date_sk          .int,
-      'cs_bill_customer_sk      .int,
-      'cs_bill_cdemo_sk         .int,
-      'cs_bill_hdemo_sk         .int,
-      'cs_bill_addr_sk          .int,
-      'cs_ship_customer_sk      .int,
-      'cs_ship_cdemo_sk         .int,
-      'cs_ship_hdemo_sk         .int,
-      'cs_ship_addr_sk          .int,
-      'cs_call_center_sk        .int,
-      'cs_catalog_page_sk       .int,
-      'cs_ship_mode_sk          .int,
+      Symbol("cs_sold_date_sk")          .int,
+      Symbol("cs_sold_time_sk")          .int,
+      Symbol("cs_ship_date_sk")          .int,
+      Symbol("cs_bill_customer_sk")      .int,
+      Symbol("cs_bill_cdemo_sk")         .int,
+      Symbol("cs_bill_hdemo_sk")         .int,
+      Symbol("cs_bill_addr_sk")          .int,
+      Symbol("cs_ship_customer_sk")      .int,
+      Symbol("cs_ship_cdemo_sk")         .int,
+      Symbol("cs_ship_hdemo_sk")         .int,
+      Symbol("cs_ship_addr_sk")          .int,
+      Symbol("cs_call_center_sk")        .int,
+      Symbol("cs_catalog_page_sk")       .int,
+      Symbol("cs_ship_mode_sk")          .int,
       'cs_warehouse_sk          .int,
       'cs_item_sk               .int,
       'cs_promo_sk              .int,

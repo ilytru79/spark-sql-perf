@@ -5,20 +5,22 @@ name := "spark-sql-perf"
 
 organization := "com.databricks"
 
-scalaVersion := "2.12.10"
+scalaVersion := "2.13.8"
 
-crossScalaVersions := Seq("2.12.10")
+crossScalaVersions := Seq("2.13.8")
 
 sparkPackageName := "databricks/spark-sql-perf"
 
 // All Spark Packages need a license
 licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 
-sparkVersion := "3.0.0"
+sparkVersion := "3.3.0"
 
-sparkComponents ++= Seq("sql", "hive", "mllib")
+sparkComponents ++= Seq("sql", "mllib")
 
+//, "hive"
 
+/*
 initialCommands in console :=
   """
     |import org.apache.spark.sql._
@@ -31,12 +33,13 @@ initialCommands in console :=
     |val sqlContext = TestHive
     |import sqlContext.implicits._
   """.stripMargin
+*/
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
-libraryDependencies += "com.twitter" %% "util-jvm" % "6.45.0" % "provided"
+libraryDependencies += "com.twitter" %% "util-jvm" % "22.12.0" % "provided"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
 libraryDependencies += "org.yaml" % "snakeyaml" % "1.23"
 
@@ -57,44 +60,44 @@ dbcClusters += sys.env.getOrElse("DBC_USERNAME", "")
 
 dbcLibraryPath := s"/Users/${sys.env.getOrElse("DBC_USERNAME", "")}/lib"
 
-val runBenchmark = inputKey[Unit]("runs a benchmark")
+//val runBenchmark = inputKey[Unit]("runs a benchmark")
 
-runBenchmark := {
-  import complete.DefaultParsers._
-  val args = spaceDelimited("[args]").parsed
-  val scalaRun = (runner in run).value
-  val classpath = (fullClasspath in Compile).value
-  scalaRun.run("com.databricks.spark.sql.perf.RunBenchmark", classpath.map(_.data), args,
-    streams.value.log)
-}
-
-
-val runMLBenchmark = inputKey[Unit]("runs an ML benchmark")
-
-runMLBenchmark := {
-  import complete.DefaultParsers._
-  val args = spaceDelimited("[args]").parsed
-  val scalaRun = (runner in run).value
-  val classpath = (fullClasspath in Compile).value
-  scalaRun.run("com.databricks.spark.sql.perf.mllib.MLLib", classpath.map(_.data), args,
-    streams.value.log)
-}
+// runBenchmark := {
+//  import complete.DefaultParsers._
+//  val args = spaceDelimited("[args]").parsed
+//  val scalaRun = (runner in run).value
+//  val classpath = (fullClasspath in Compile).value
+//  scalaRun.run("com.databricks.spark.sql.perf.RunBenchmark", classpath.map(_.data), args,
+//   streams.value.log)
+//}
 
 
-import ReleaseTransformations._
+//val runMLBenchmark = inputKey[Unit]("runs an ML benchmark")
+
+//runMLBenchmark := {
+//  import complete.DefaultParsers._
+//  val args = spaceDelimited("[args]").parsed
+//  val scalaRun = (runner in run).value
+//  val classpath = (fullClasspath in Compile).value
+//  scalaRun.run("com.databricks.spark.sql.perf.mllib.MLLib", classpath.map(_.data), args,
+//    streams.value.log)
+//}
+
+
+//import ReleaseTransformations._
 
 /** Push to the team directory instead of the user's homedir for releases. */
-lazy val setupDbcRelease = ReleaseStep(
-  action = { st: State =>
-    val extracted = Project.extract(st)
-    val newSettings = extracted.structure.allProjectRefs.map { ref =>
-      dbcLibraryPath in ref := "/databricks/spark/sql/lib"
-    }
-
-    reapply(newSettings, st)
-  }
-)
-
+//lazy val setupDbcRelease = ReleaseStep(
+//  action = { st: State =>
+//    val extracted = Project.extract(st)
+//    val newSettings = extracted.structure.allProjectRefs.map { ref =>
+//      dbcLibraryPath in ref := "/databricks/spark/sql/lib"
+//    }
+//
+//    reapply(newSettings, st)
+//  }
+//)
+/*
 /********************
  * Release settings *
  ********************/
@@ -143,8 +146,9 @@ pomExtra := (
     )
 
 bintrayReleaseOnPublish in ThisBuild := false
-
+*/
 // Add publishing to spark packages as another step.
+/*
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
   inquireVersions,
@@ -159,3 +163,4 @@ releaseProcess := Seq[ReleaseStep](
   commitNextVersion,
   pushChanges
 )
+*/

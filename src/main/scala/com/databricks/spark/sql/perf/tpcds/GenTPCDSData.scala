@@ -21,6 +21,7 @@ import org.apache.spark.sql.SparkSession
 case class GenTPCDSDataConfig(
     master: String = "local[*]",
     dsdgenDir: String = null,
+    dsdgenDistArchive: String = "",
     scaleFactor: String = null,
     location: String = null,
     format: String = null,
@@ -50,6 +51,9 @@ object GenTPCDSData {
         .action { (x, c) => c.copy(dsdgenDir = x) }
         .text("location of dsdgen")
         .required()
+      opt[String]('a', "dsdgenDistArchive")
+        .action { (x, c) => c.copy(dsdgenDistArchive = x) }
+        .text("local archive with dsddgen")
       opt[String]('s', "scaleFactor")
         .action((x, c) => c.copy(scaleFactor = x))
         .text("scaleFactor defines the size of the dataset to generate (in GB)")
@@ -102,11 +106,17 @@ object GenTPCDSData {
       .master(config.master)
       .getOrCreate()
 
+    if (config.dsdgenDistArchive!="") {
+      spark.sparkContext.addArchive(config.dsdgenDistArchive)
+    }
+
+
     val tables = new TPCDSTables(spark.sqlContext,
       dsdgenDir = config.dsdgenDir,
       scaleFactor = config.scaleFactor,
       useDoubleForDecimal = config.useDoubleForDecimal,
-      useStringForDate = config.useStringForDate)
+      useStringForDate = config.useStringForDate,
+      dsdgenArchive = config.dsdgenDistArchive)
 
     tables.genData(
       location = config.location,
