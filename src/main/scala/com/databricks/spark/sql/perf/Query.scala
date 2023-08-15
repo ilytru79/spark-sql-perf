@@ -102,7 +102,7 @@ class Query(
 
             BreakdownResult(
               node.nodeName,
-              node.simpleString(maxFields).replaceAll("#\\d+", ""),
+              node.simpleString(maxFields).toString.replaceAll("#\\d+", ""),
               index,
               childIndexes,
               executionTime,

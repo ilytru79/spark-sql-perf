@@ -107,7 +107,7 @@ object GenTPCDSData {
       .getOrCreate()
 
     if (config.dsdgenDistArchive!="") {
-      spark.sparkContext.addArchive(config.dsdgenDistArchive)
+      spark.sparkContext.addFile(config.dsdgenDistArchive)
     }
 
 
