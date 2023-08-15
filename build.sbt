@@ -5,16 +5,16 @@ name := "spark-sql-perf"
 
 organization := "com.databricks"
 
-scalaVersion := "2.13.8"
+scalaVersion := "2.11.12"
 
-crossScalaVersions := Seq("2.13.8")
+crossScalaVersions := Seq("2.11.12")
 
 sparkPackageName := "databricks/spark-sql-perf"
 
 // All Spark Packages need a license
 licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 
-sparkVersion := "3.3.0"
+sparkVersion := "2.4.0"
 
 sparkComponents ++= Seq("sql", "mllib")
 
@@ -37,7 +37,7 @@ initialCommands in console :=
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
-libraryDependencies += "com.twitter" %% "util-jvm" % "22.12.0" % "provided"
+libraryDependencies += "com.twitter" %% "util-jvm" % "21.2.0"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
@@ -46,19 +46,19 @@ libraryDependencies += "org.yaml" % "snakeyaml" % "1.23"
 fork := true
 
 // Your username to login to Databricks Cloud
-dbcUsername := sys.env.getOrElse("DBC_USERNAME", "")
+//dbcUsername := sys.env.getOrElse("DBC_USERNAME", "")
 
 // Your password (Can be set as an environment variable)
-dbcPassword := sys.env.getOrElse("DBC_PASSWORD", "")
+//dbcPassword := sys.env.getOrElse("DBC_PASSWORD", "")
 
 // The URL to the Databricks Cloud DB Api. Don't forget to set the port number to 34563!
-dbcApiUrl := sys.env.getOrElse ("DBC_URL", sys.error("Please set DBC_URL"))
+//dbcApiUrl := sys.env.getOrElse ("DBC_URL", sys.error("Please set DBC_URL"))
 
 // Add any clusters that you would like to deploy your work to. e.g. "My Cluster"
 // or run dbcExecuteCommand
-dbcClusters += sys.env.getOrElse("DBC_USERNAME", "")
+//dbcClusters += sys.env.getOrElse("DBC_USERNAME", "")
 
-dbcLibraryPath := s"/Users/${sys.env.getOrElse("DBC_USERNAME", "")}/lib"
+//dbcLibraryPath := s"/Users/${sys.env.getOrElse("DBC_USERNAME", "")}/lib"
 
 //val runBenchmark = inputKey[Unit]("runs a benchmark")
 
