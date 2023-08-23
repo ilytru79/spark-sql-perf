@@ -25,7 +25,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 
 class DSDGEN(dsdgenDir: String,dsdgenArchive: String) extends DataGenerator {
-  var dsdgen = s"$dsdgenDir/dsdgen"
+  var dsdgen = s"$dsdgenDir/dsdgen.jar"
 
   def generate(sparkContext: SparkContext, name: String, partitions: Int, scaleFactor: String) = {
     val generatedData = {
@@ -51,11 +51,11 @@ class DSDGEN(dsdgenDir: String,dsdgenArchive: String) extends DataGenerator {
           val dsdPath1 = s"$archivePath/$dsdgen".replaceAll("[/][.][/]", "/")
           val dsdPath2 = s"$archivePath$dsdgen".replaceAll("[/][.][/]", "/")
 
-          if (new java.io.File(s"$archivePath/dsdgen").exists) {
-            this.dsdgen =  s"$archivePath/dsdgen"
+          if (new java.io.File(s"$archivePath/dsdgen.jar").exists) {
+            this.dsdgen =  s"$archivePath/dsdgen.jar"
             archivePath
-          } else if (new java.io.File(s"/$archivePath/dsdgen").exists) {
-            this.dsdgen =  s"$archivePath/dsdgen"
+          } else if (new java.io.File(s"/$archivePath/dsdgen.jar").exists) {
+            this.dsdgen =  s"$archivePath/dsdgen.jar"
             s"/$archivePath"
           }
           else if (new java.io.File(s"$archivePath/$dsdgen"
@@ -83,10 +83,10 @@ class DSDGEN(dsdgenDir: String,dsdgenArchive: String) extends DataGenerator {
           }
 
         // Note: RNGSEED is the RNG seed used by the data generator. Right now, it is fixed to 100.
-        val parallel = if (partitions > 1) s"-parallel $partitions -child $i" else ""
+        val parallel = if (partitions > 1) s"--parallelism $partitions --chunk $i" else ""
         val commands = Seq(
           "bash", "-c",
-          s"cd $localToolsDir && ./dsdgen -table $name -filter Y -scale $scaleFactor -RNGSEED 100 $parallel")
+          s"cd $localToolsDir && java -jar ./dsdgen.jar --table $name --stdout --scale $scaleFactor $parallel")
 
 
         // ./dsdgen -table catalog_sales -filter Y -scale 1 -RNGSEED 100
