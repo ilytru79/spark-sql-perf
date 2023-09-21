@@ -17,6 +17,7 @@
 package com.databricks.spark.sql.perf.tpcds
 
 import org.apache.spark.sql.SparkSession
+import org.slf4j.LoggerFactory
 
 case class GenTPCDSDataConfig(
     master: String = "local[*]",
@@ -32,7 +33,10 @@ case class GenTPCDSDataConfig(
     clusterByPartitionColumns: Boolean = true,
     filterOutNullPartitionValues: Boolean = true,
     tableFilter: String = "",
-    numPartitions: Int = 100)
+    numPartitions: Int = 100,
+    databaseName: String = "",
+    dropExistingDatabase: Boolean = false,
+    analyzeTables: Boolean = false)
 
 /**
  * Gen TPCDS data.
@@ -42,6 +46,7 @@ case class GenTPCDSDataConfig(
  * }}}
  */
 object GenTPCDSData {
+  private val log = LoggerFactory.getLogger(getClass)
   def main(args: Array[String]): Unit = {
     val parser = new scopt.OptionParser[GenTPCDSDataConfig]("Gen-TPC-DS-data") {
       opt[String]('m', "master")
@@ -87,6 +92,15 @@ object GenTPCDSData {
       opt[Int]('n', "numPartitions")
         .action((x, c) => c.copy(numPartitions = x))
         .text("how many dsdgen partitions to run - number of input tasks.")
+      opt[String]('b', "database")
+        .action((x, c) => c.copy(databaseName = x))
+        .text("hive database \"\" means do not generate tables")
+      opt[Boolean]('r', "dropExistingDatabase")
+        .action((x, c) => c.copy(dropExistingDatabase = x))
+        .text("true to drop existing database - default false")
+      opt[Boolean]('z', "analyze")
+        .action((x, c) => c.copy(dropExistingDatabase = x))
+        .text("true to analyze tables to use with CBO - default false")
       help("help")
         .text("prints this usage text")
     }
@@ -118,7 +132,59 @@ object GenTPCDSData {
       useStringForDate = config.useStringForDate,
       dsdgenArchive = config.dsdgenDistArchive)
 
-    tables.genData(
+    val dsdgenNonPartitioned = 10 // small tables do not need much parallelism in generation.
+
+    val nonPartitionedTables_raw = Array("call_center", "catalog_page", "customer", "customer_address", "customer_demographics", "date_dim", "household_demographics", "income_band", "item", "promotion", "reason", "ship_mode", "store",  "time_dim", "warehouse", "web_page", "web_site")
+    val partitionedTables_raw = Array("inventory", "web_returns", "catalog_returns", "store_returns", "web_sales", "catalog_sales", "store_sales")
+
+    val nonPartitionedTables =
+    if (config.tableFilter != ""){
+          nonPartitionedTables_raw.filter(_ == config.tableFilter)
+      }
+      else{
+          nonPartitionedTables_raw
+      }
+
+    val partitionedTables =
+      if (config.tableFilter != ""){
+        partitionedTables_raw.filter(_ == config.tableFilter)
+      }
+      else{
+        partitionedTables_raw
+      }
+
+    log.info("generate unpartitioned tables-->")
+
+    nonPartitionedTables.foreach { t => {
+      tables.genData(
+        location = config.location,
+        format = config.format,
+        overwrite = config.overwrite,
+        partitionTables = config.partitionTables,
+        clusterByPartitionColumns = config.clusterByPartitionColumns,
+        filterOutNullPartitionValues = config.filterOutNullPartitionValues,
+        tableFilter = t,
+        numPartitions = dsdgenNonPartitioned)
+      log.info(s"$t generated")
+    }}
+    log.info("<-- unpartitioned tables done")
+
+    log.info("generate partitioned tables-->")
+    partitionedTables.foreach { t => {
+      tables.genData(
+        location = config.location,
+        format = config.format,
+        overwrite = config.overwrite,
+        partitionTables = config.partitionTables,
+        clusterByPartitionColumns = config.clusterByPartitionColumns,
+        filterOutNullPartitionValues = config.filterOutNullPartitionValues,
+        tableFilter = t,
+        numPartitions = config.numPartitions)
+      log.info(s"$t generated")
+    }}
+    log.info("<-- partitioned tables done")
+    /*
+      tables.genData(
       location = config.location,
       format = config.format,
       overwrite = config.overwrite,
@@ -127,5 +193,28 @@ object GenTPCDSData {
       filterOutNullPartitionValues = config.filterOutNullPartitionValues,
       tableFilter = config.tableFilter,
       numPartitions = config.numPartitions)
+     */
+    if (config.databaseName!=""){
+      log.info(s"generate database ${config.databaseName}->")
+      if (config.dropExistingDatabase) {
+        log.info(s"database ${config.databaseName} will be recreated")
+        spark.sql(s"drop database if exists ${config.databaseName} cascade")
+        spark.sql(s"create database ${config.databaseName}")
+        log.info(s"database ${config.databaseName} recreated")
+      }
+
+      spark.sql(s"use ${config.databaseName}")
+      log.info(s"create tables-->")
+      tables.createExternalTables(config.location, config.format, config.databaseName, overwrite = true, discoverPartitions = true)
+      log.info(s"<--done ")
+      if (config.analyzeTables) {
+        log.info(s"analyze tables-->")
+        tables.analyzeTables(config.databaseName, analyzeColumns = true)
+        log.info(s"<--done ")
+      }
+    }
+    else{
+      log.info("database wil not be generated (by option)")
+    }
   }
 }
