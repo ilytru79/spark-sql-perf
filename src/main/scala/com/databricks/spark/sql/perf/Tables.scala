@@ -225,7 +225,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
             val numFiles = (numRows.toDouble/maxRecordPerFile).ceil.toInt
             println(s"Coalescing into $numFiles files")
             log.info(s"Coalescing into $numFiles files")
-            data.coalesce(numFiles).write
+            data.repartition(numFiles).write
           } else {
             data.coalesce(1).write
           }
