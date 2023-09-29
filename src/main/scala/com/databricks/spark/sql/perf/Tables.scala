@@ -167,9 +167,9 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
           .appendedAll(this.partitionColumns.map(partitionsColumnsMap(_))).mkString(",")
       }
       val partitionPrefix =
-        if ((usePartitions)&(!partitionsSet.isEmpty)){
+        if ((usePartitions)&&(partitionsSet.nonEmpty)){
           val partitionedBy = this.partitionColumns.map(partitionsColumnsMap(_)).mkString(",")
-          s" PARTITIONED BY (${partitionedBy}) "
+          s""" PARTITIONED BY ($partitionedBy) """
         }
         else{
               ""
@@ -213,7 +213,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       val mode = if (overwrite) SaveMode.Overwrite else SaveMode.Ignore
 
       val data = df(format != "text", numPartitions)
-      val tempTableName = s"${name}_text"
+      val tempTableName = s"${this.name}_text"
 
       if (!copyToDatabase) {
         data.createOrReplaceTempView(tempTableName)
@@ -286,9 +286,9 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
         log.info(s"<==done")
         val saved_data = sqlContext.read.format(format).load(location)
         saved_data.createOrReplaceTempView(tempTableName)
-        val columnString = this.columnsForSelect
-        val query =
-        if ((clusterByPartitionColumns)&&(!partitionColumns.isEmpty)) {
+        val columnString = this.columnsForSelect()
+        val query: String =
+        if (clusterByPartitionColumns && partitionColumns.nonEmpty) {
           val partitionColumnString = partitionColumns.mkString(",")
           val predicates = if (filterOutNullPartitionValues) {
             partitionColumns.map(col => s"$col IS NOT NULL").mkString("WHERE ", " AND ", "")
@@ -297,7 +297,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
           }
 
 
-            s""" INSERT OVERWRITE TABLE ${databaseName}.$name PARTITION ($partitionColumnString)
+            s""" INSERT OVERWRITE TABLE $databaseName.$name PARTITION ($partitionColumnString)
                |SELECT
                |  $columnString
                |FROM
@@ -308,16 +308,16 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
           """.stripMargin
         } else{
 
-            s""" INSERT OVERWRITE TABLE ${databaseName}.$name
+            s""" INSERT OVERWRITE TABLE $databaseName.$name
                |SELECT
                |  $columnString
                |FROM
                |  $tempTableName
           """.stripMargin
         }
-        println(s"Copying data to table ${databaseName}.$name  from  $location ")
-        log.info(s"Copying data to table ${databaseName}.$name  from  $location ")
-        val dropSQL = s"DROP TABLE IF EXISTS ${databaseName}.$name"
+        println(s"Copying data to table $databaseName.$name  from  $location ")
+        log.info(s"Copying data to table $databaseName.$name  from  $location ")
+        val dropSQL = s"DROP TABLE IF EXISTS $databaseName.$name"
         println(s"DROP SQL \n $dropSQL")
         sqlContext.sql(dropSQL)
         val ddlSQL = this.toDDL(databaseName,clusterByPartitionColumns,format)
@@ -386,7 +386,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       tables.map(_.nonPartitioned)
     }
 
-    if (!tableFilter.isEmpty) {
+    if (tableFilter.nonEmpty) {
       tablesToBeGenerated = tablesToBeGenerated.filter(_.name == tableFilter)
       if (tablesToBeGenerated.isEmpty) {
         throw new RuntimeException("Bad table name filter: " + tableFilter)
