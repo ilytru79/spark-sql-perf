@@ -154,6 +154,39 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
         sqlContext.createDataFrame(rows, StructType(Seq(StructField("value", StringType))))
       }
     }
+    def toDDL(databaseName:String, usePartitions: Boolean, format :String): String ={
+      val partitionsSet: Set[String] = this.partitionColumns.toSet
+      val partitionsColumnsMap = this.fields.filter(x=> partitionsSet(x.name)).map(x=>(x.name,x.toDDL)).toMap
+
+
+      val columns = if (usePartitions){
+        this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL).mkString(",")
+      }
+      else{
+        this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL)
+          .appendedAll(this.partitionColumns.map(partitionsColumnsMap(_))).mkString(",")
+      }
+      val partitionPrefix =
+        if ((usePartitions)&(!partitionsSet.isEmpty)){
+          val partitionedBy = this.partitionColumns.map(partitionsColumnsMap(_)).mkString(",")
+          s" PARTITIONED BY (${partitionedBy}) "
+        }
+        else{
+              ""
+        }
+      s"""CREATE TABLE $databaseName.`$name` ($columns)
+             | $partitionPrefix
+             |STORED AS $format """.stripMargin
+    }
+
+    def columnsForSelect( ):String ={
+      val partitionsSet: Set[String] = this.partitionColumns.toSet
+      this.fields.filter(x => !partitionsSet(x.name)).map(_.name)
+        .appendedAll(this.partitionColumns)
+        .mkString(",")
+
+    }
+
 
     def convertTypes(): Table = {
       val newFields = fields.map { field =>
@@ -174,18 +207,88 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       overwrite: Boolean,
       clusterByPartitionColumns: Boolean,
       filterOutNullPartitionValues: Boolean,
-      numPartitions: Int): Unit = {
+      numPartitions: Int,
+      databaseName: String = "",
+      copyToDatabase: Boolean = false): Unit = {
       val mode = if (overwrite) SaveMode.Overwrite else SaveMode.Ignore
 
       val data = df(format != "text", numPartitions)
       val tempTableName = s"${name}_text"
-      data.createOrReplaceTempView(tempTableName)
 
-      val writer = if (partitionColumns.nonEmpty) {
+      if (!copyToDatabase) {
+        data.createOrReplaceTempView(tempTableName)
+        val writer = if (partitionColumns.nonEmpty) {
+          if (clusterByPartitionColumns) {
+            val columnString = data.schema.fields.map { field =>
+              field.name
+            }.mkString(",")
+            val partitionColumnString = partitionColumns.mkString(",")
+            val predicates = if (filterOutNullPartitionValues) {
+              partitionColumns.map(col => s"$col IS NOT NULL").mkString("WHERE ", " AND ", "")
+            } else {
+              ""
+            }
+
+            val query =
+              s"""
+                 |SELECT
+                 |  $columnString
+                 |FROM
+                 |  $tempTableName
+                 |$predicates
+                 |DISTRIBUTE BY
+                 |  $partitionColumnString
+            """.stripMargin
+            val grouped = sqlContext.sql(query)
+            println(s"Pre-clustering with partitioning columns with query $query.")
+            log.info(s"Pre-clustering with partitioning columns with query $query.")
+            grouped.write
+          } else {
+            data.write
+          }
+        } else {
+          // treat non-partitioned tables as "one partition" that we want to coalesce
+          if (clusterByPartitionColumns) {
+            // in case data has more than maxRecordsPerFile, split into multiple writers to improve datagen speed
+            // files will be truncated to maxRecordsPerFile value, so the final result will be the same
+            val numRows = data.count
+            val maxRecordPerFile = util.Try(sqlContext.getConf("spark.sql.files.maxRecordsPerFile").toInt).getOrElse(0)
+
+            println(s"Data has $numRows rows clustered $clusterByPartitionColumns for $maxRecordPerFile")
+            log.info(s"Data has $numRows rows clustered $clusterByPartitionColumns for $maxRecordPerFile")
+
+            if (maxRecordPerFile > 0 && numRows > maxRecordPerFile) {
+              val numFiles = (numRows.toDouble / maxRecordPerFile).ceil.toInt
+              println(s"Coalescing into $numFiles files")
+              log.info(s"Coalescing into $numFiles files")
+              data.repartition(numFiles).write
+            } else {
+              data.coalesce(1).write
+            }
+          } else {
+            data.write
+          }
+        }
+        writer.format(format).mode(mode)
+        if (partitionColumns.nonEmpty) {
+          writer.partitionBy(partitionColumns: _*)
+        }
+        println(s"Generating table $name in database to $location with save mode $mode.")
+        log.info(s"Generating table $name in database to $location with save mode $mode.")
+        writer.save(location)
+
+      }
+      else {
+        println(s"Generating table data $name  to $location with save mode $mode.")
+        log.info(s"Generating table data $name  to $location with save mode $mode.")
+        data.write.format(format).mode(mode).save(location)
+        println(s"<==done")
+        log.info(s"<==done")
+        val saved_data = sqlContext.read.format(format).load(location)
+        saved_data.createOrReplaceTempView(tempTableName)
+        val columnString = this.columnsForSelect
+        val query =
         if (clusterByPartitionColumns) {
-          val columnString = data.schema.fields.map { field =>
-            field.name
-          }.mkString(",")
           val partitionColumnString = partitionColumns.mkString(",")
           val predicates = if (filterOutNullPartitionValues) {
             partitionColumns.map(col => s"$col IS NOT NULL").mkString("WHERE ", " AND ", "")
@@ -193,8 +296,8 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
             ""
           }
 
-          val query =
-            s"""
+
+            s""" INSERT OVERWRITE TABLE ${databaseName}.$name PARTITION ($partitionColumnString)
                |SELECT
                |  $columnString
                |FROM
@@ -202,44 +305,28 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
                |$predicates
                |DISTRIBUTE BY
                |  $partitionColumnString
-            """.stripMargin
-          val grouped = sqlContext.sql(query)
-          println(s"Pre-clustering with partitioning columns with query $query.")
-          log.info(s"Pre-clustering with partitioning columns with query $query.")
-          grouped.write
-        } else {
-          data.write
-        }
-      } else {
-        // treat non-partitioned tables as "one partition" that we want to coalesce
-        if (clusterByPartitionColumns) {
-          // in case data has more than maxRecordsPerFile, split into multiple writers to improve datagen speed
-          // files will be truncated to maxRecordsPerFile value, so the final result will be the same
-          val numRows = data.count
-          val maxRecordPerFile = util.Try(sqlContext.getConf("spark.sql.files.maxRecordsPerFile").toInt).getOrElse(0)
+          """.stripMargin
+        } else{
 
-          println(s"Data has $numRows rows clustered $clusterByPartitionColumns for $maxRecordPerFile")
-          log.info(s"Data has $numRows rows clustered $clusterByPartitionColumns for $maxRecordPerFile")
-
-          if (maxRecordPerFile > 0 && numRows > maxRecordPerFile) {
-            val numFiles = (numRows.toDouble/maxRecordPerFile).ceil.toInt
-            println(s"Coalescing into $numFiles files")
-            log.info(s"Coalescing into $numFiles files")
-            data.repartition(numFiles).write
-          } else {
-            data.coalesce(1).write
-          }
-        } else {
-          data.write
+            s""" INSERT OVERWRITE TABLE ${databaseName}.$name
+               |SELECT
+               |  $columnString
+               |FROM
+               |  $tempTableName
+          """.stripMargin
         }
+        println(s"Copying data to table ${databaseName}.$name  from  $location ")
+        log.info(s"Copying data to table ${databaseName}.$name  from  $location ")
+        val dropSQL = s"DROP TABLE IF EXISTS ${databaseName}.$name"
+        println(s"DROP SQL \n $dropSQL")
+        sqlContext.sql(dropSQL)
+        val ddlSQL = this.toDDL(databaseName,clusterByPartitionColumns,format)
+        println (s"DDL \n $ddlSQL")
+        sqlContext.sql(ddlSQL)
+        println(s"QUERY \n $query")
+        sqlContext.sql(query)
+        println(s"Done")
       }
-      writer.format(format).mode(mode)
-      if (partitionColumns.nonEmpty) {
-        writer.partitionBy(partitionColumns : _*)
-      }
-      println(s"Generating table $name in database to $location with save mode $mode.")
-      log.info(s"Generating table $name in database to $location with save mode $mode.")
-      writer.save(location)
       sqlContext.dropTempTable(tempTableName)
     }
 
@@ -290,7 +377,9 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       clusterByPartitionColumns: Boolean,
       filterOutNullPartitionValues: Boolean,
       tableFilter: String = "",
-      numPartitions: Int = 100): Unit = {
+      numPartitions: Int = 100,
+      databaseName: String = "",
+      copyToDatabase: Boolean = false): Unit = {
     var tablesToBeGenerated = if (partitionTables) {
       tables
     } else {
@@ -307,7 +396,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     tablesToBeGenerated.foreach { table =>
       val tableLocation = s"$location/${table.name}"
       table.genData(tableLocation, format, overwrite, clusterByPartitionColumns,
-        filterOutNullPartitionValues, numPartitions)
+        filterOutNullPartitionValues, numPartitions , databaseName, copyToDatabase )
     }
   }
 

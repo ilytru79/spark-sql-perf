@@ -36,7 +36,8 @@ case class GenTPCDSDataConfig(
     numPartitions: Int = 100,
     databaseName: String = "",
     dropExistingDatabase: Boolean = false,
-    analyzeTables: Boolean = false)
+    analyzeTables: Boolean = false,
+    copyToDatabase: Boolean = true)
 
 /**
  * Gen TPCDS data.
@@ -101,6 +102,9 @@ object GenTPCDSData {
       opt[Boolean]('z', "analyze")
         .action((x, c) => c.copy(dropExistingDatabase = x))
         .text("true to analyze tables to use with CBO - default false")
+      opt[Boolean]('y', "copytodatabse")
+        .action((x, c) => c.copy(dropExistingDatabase = x))
+        .text("copy tables from database to location")
       help("help")
         .text("prints this usage text")
     }
@@ -155,6 +159,20 @@ object GenTPCDSData {
 
     log.info("generate unpartitioned tables-->")
 
+    if (config.databaseName != "") {
+      log.info(s"create database ${config.databaseName}->")
+      println(s"create database ${config.databaseName}->")
+      if (config.dropExistingDatabase) {
+        log.info(s"database ${config.databaseName} will be dropped")
+        println(s"database ${config.databaseName} will be dropped")
+        spark.sql(s"drop database if exists ${config.databaseName} cascade")
+      }
+      spark.sql(s"create if not exists database ${config.databaseName}")
+      log.info(s"database ${config.databaseName} recreated")
+      println(s"database ${config.databaseName} recreated")
+      spark.sql(s"use ${config.databaseName}")
+    }
+
     nonPartitionedTables.foreach { t => {
       tables.genData(
         location = config.location,
@@ -164,7 +182,10 @@ object GenTPCDSData {
         clusterByPartitionColumns = config.clusterByPartitionColumns,
         filterOutNullPartitionValues = config.filterOutNullPartitionValues,
         tableFilter = t,
-        numPartitions = dsdgenNonPartitioned)
+        numPartitions = dsdgenNonPartitioned,
+        databaseName = config.databaseName,
+        copyToDatabase = config.copyToDatabase
+      )
       log.info(s"$t generated")
     }}
     log.info("<-- unpartitioned tables done")
@@ -179,7 +200,9 @@ object GenTPCDSData {
         clusterByPartitionColumns = config.clusterByPartitionColumns,
         filterOutNullPartitionValues = config.filterOutNullPartitionValues,
         tableFilter = t,
-        numPartitions = config.numPartitions)
+        numPartitions = config.numPartitions,
+        databaseName = config.databaseName,
+        copyToDatabase = config.copyToDatabase)
       log.info(s"$t generated")
     }}
     log.info("<-- partitioned tables done")
@@ -195,18 +218,13 @@ object GenTPCDSData {
       numPartitions = config.numPartitions)
      */
     if (config.databaseName!=""){
-      log.info(s"generate database ${config.databaseName}->")
-      if (config.dropExistingDatabase) {
-        log.info(s"database ${config.databaseName} will be recreated")
-        spark.sql(s"drop database if exists ${config.databaseName} cascade")
-        spark.sql(s"create database ${config.databaseName}")
-        log.info(s"database ${config.databaseName} recreated")
+      if (!config.copyToDatabase) {
+        log.info(s"create tables-->")
+        println(s"create external tables-->")
+        tables.createExternalTables(config.location, config.format, config.databaseName, overwrite = true, discoverPartitions = true)
+        println(s"<--done")
+        log.info(s"<--done ")
       }
-
-      spark.sql(s"use ${config.databaseName}")
-      log.info(s"create tables-->")
-      tables.createExternalTables(config.location, config.format, config.databaseName, overwrite = true, discoverPartitions = true)
-      log.info(s"<--done ")
       if (config.analyzeTables) {
         log.info(s"analyze tables-->")
         tables.analyzeTables(config.databaseName, analyzeColumns = true)
