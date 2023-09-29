@@ -227,7 +227,7 @@ object GenTPCDSData {
       }
       if (config.analyzeTables) {
         log.info(s"analyze tables-->")
-        tables.analyzeTables(config.databaseName, analyzeColumns = true)
+        tables.analyzeTables(config.databaseName, analyzeColumns = true,tableFilter =  config.tableFilter)
         log.info(s"<--done ")
       }
     }

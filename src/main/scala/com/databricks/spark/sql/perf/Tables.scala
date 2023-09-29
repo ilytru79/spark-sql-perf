@@ -359,11 +359,13 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
     def analyzeTable(databaseName: String, analyzeColumns: Boolean = false): Unit = {
       println(s"Analyzing table $name.")
       log.info(s"Analyzing table $name.")
+      println (s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS")
       sqlContext.sql(s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS")
       if (analyzeColumns) {
         val allColumns = fields.map(_.name).mkString(", ")
         println(s"Analyzing table $name columns $allColumns.")
         log.info(s"Analyzing table $name columns $allColumns.")
+        println (s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS FOR COLUMNS $allColumns")
         sqlContext.sql(s"ANALYZE TABLE $databaseName.$name COMPUTE STATISTICS FOR COLUMNS $allColumns")
       }
     }
