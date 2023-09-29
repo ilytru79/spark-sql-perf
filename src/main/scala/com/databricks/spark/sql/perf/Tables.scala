@@ -288,7 +288,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
         saved_data.createOrReplaceTempView(tempTableName)
         val columnString = this.columnsForSelect
         val query =
-        if (clusterByPartitionColumns) {
+        if ((clusterByPartitionColumns)&&(!partitionColumns.isEmpty)) {
           val partitionColumnString = partitionColumns.mkString(",")
           val predicates = if (filterOutNullPartitionValues) {
             partitionColumns.map(col => s"$col IS NOT NULL").mkString("WHERE ", " AND ", "")

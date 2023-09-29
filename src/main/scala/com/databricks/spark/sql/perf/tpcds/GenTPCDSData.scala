@@ -100,10 +100,10 @@ object GenTPCDSData {
         .action((x, c) => c.copy(dropExistingDatabase = x))
         .text("true to drop existing database - default false")
       opt[Boolean]('z', "analyze")
-        .action((x, c) => c.copy(dropExistingDatabase = x))
+        .action((x, c) => c.copy(analyzeTables = x))
         .text("true to analyze tables to use with CBO - default false")
       opt[Boolean]('y', "copytodatabse")
-        .action((x, c) => c.copy(dropExistingDatabase = x))
+        .action((x, c) => c.copy(copyToDatabase = x))
         .text("copy tables from database to location")
       help("help")
         .text("prints this usage text")
@@ -167,7 +167,7 @@ object GenTPCDSData {
         println(s"database ${config.databaseName} will be dropped")
         spark.sql(s"drop database if exists ${config.databaseName} cascade")
       }
-      spark.sql(s"create if not exists database ${config.databaseName}")
+      spark.sql(s"create database if not exists ${config.databaseName}")
       log.info(s"database ${config.databaseName} recreated")
       println(s"database ${config.databaseName} recreated")
       spark.sql(s"use ${config.databaseName}")
@@ -188,7 +188,7 @@ object GenTPCDSData {
       )
       log.info(s"$t generated")
     }}
-    log.info("<-- unpartitioned tables done")
+    log.info("<-- nonpartitioned tables done")
 
     log.info("generate partitioned tables-->")
     partitionedTables.foreach { t => {
