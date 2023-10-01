@@ -181,7 +181,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
 
     def columnsForSelect( ):String ={
       val partitionsSet: Set[String] = this.partitionColumns.toSet
-      (this.partitionColumns++:this.fields.filter(x => !partitionsSet(x.name)).map(_.name))
+      (this.fields.filter(x => !partitionsSet(x.name)).map(_.name)++:this.partitionColumns)
         .mkString(",")
 
     }
