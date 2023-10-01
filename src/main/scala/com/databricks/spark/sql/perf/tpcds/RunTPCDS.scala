@@ -1,6 +1,6 @@
 package com.databricks.spark.sql.perf.tpcds
 
-import com.databricks.spark.sql.perf.tpcds.GenTPCDSData.getClass
+import com.databricks.spark.sql.perf.tpcds.RunTPCDS.getClass
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import com.databricks.spark.sql.perf.tpcds.TPCDS
@@ -90,7 +90,7 @@ object RunTPCDS {
     experiment.waitForFinish(config.timeoutHours*60*60)
 
 
-    val summary = experiment.getCurrentResults
+    val summary = experiment.getCurrentResults()
       .withColumn("Name", substring(col("name"), 2, 100))
       .withColumn("Runtime", (col("parsingTime") + col("analysisTime") + col("optimizationTime") + col("planningTime") + col("executionTime")) / 1000.0)
 
