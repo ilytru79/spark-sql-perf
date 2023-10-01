@@ -163,8 +163,8 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
         this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL).mkString(",")
       }
       else{
-        (this.partitionColumns.map(partitionsColumnsMap(_))++:
-          this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL)).mkString(",")
+        (this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL)++:
+          this.partitionColumns.map(partitionsColumnsMap(_))).mkString(",")
       }
       val partitionPrefix =
         if ((usePartitions)&&(partitionsColumnsMap.nonEmpty)){
