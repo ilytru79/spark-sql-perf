@@ -1,0 +1,32 @@
+#!/bin/bash
+spark3-submit --class com.databricks.spark.sql.perf.tpcds.GenTPCDSData \
+			 --deploy-mode client \
+			 --master yarn \
+  	     --jars "./spark-sql-perf.jar" \
+             --archives tpcds.tar.gz#tpcds \
+             --conf "spark.hadoop.parquet.memory.pool.ratio=0.1" \
+             --conf "spark.executor.memoryOverhead=4g" \
+	     --conf "spark.executor.memory=8g" \
+             --conf "spark.memory.fraction=0.2" \
+	     --conf "spark.dynamicAllocation.enabled=true" \
+	     --conf "spark.dynamicAllocation.maxExecutors=200" \
+	     --conf "spark.shuffle.service.enabled=true" \
+	     --conf "spark.driver.memory=8g" \
+	     --conf "spark.driver.memoryOverhead=4g" \
+	     --conf "spark.driver.cores=3" \
+	     --conf "spark.blacklist.enabled=false" \
+	     --conf "spark.serializer=org.apache.spark.serializer.KryoSerializer" \
+	     --conf "spark.kryoserializer.buffer.max=2000" \
+             --conf "spark.sql.shuffle.partitions=2000" \
+	     --conf "spark.rdd.compress=true" \
+             --conf "spark.sql.files.maxRecordsPerFile=20000000" \
+             "./spark-sql-perf.jar" \
+			 -d ./tpcds \
+			 -m yarn \
+			 -s 100 \
+			 -l "hdfs:///tests/tpcds/tpcds100" \
+			 -f Parquet \
+			 -o true \
+             -v true \
+             -c true \
+             -n 30
