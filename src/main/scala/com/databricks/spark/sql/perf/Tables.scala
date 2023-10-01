@@ -159,15 +159,15 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
       val partitionsColumnsMap = this.fields.filter(x=> partitionsSet(x.name)).map(x=>(x.name,x.toDDL)).toMap
 
 
-      val columns = if (usePartitions){
+      val columns = if ((usePartitions)&&(partitionsColumnsMap.nonEmpty)){
         this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL).mkString(",")
       }
       else{
-        this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL)
-          .appendedAll(this.partitionColumns.map(partitionsColumnsMap(_))).mkString(",")
+        (this.partitionColumns.map(partitionsColumnsMap(_))++:
+          this.fields.filter(x=> !partitionsSet(x.name)).map(_.toDDL)).mkString(",")
       }
       val partitionPrefix =
-        if ((usePartitions)&&(partitionsSet.nonEmpty)){
+        if ((usePartitions)&&(partitionsColumnsMap.nonEmpty)){
           val partitionedBy = this.partitionColumns.map(partitionsColumnsMap(_)).mkString(",")
           s""" PARTITIONED BY ($partitionedBy) """
         }
@@ -181,8 +181,7 @@ abstract class Tables(sqlContext: SQLContext, scaleFactor: String,
 
     def columnsForSelect( ):String ={
       val partitionsSet: Set[String] = this.partitionColumns.toSet
-      this.fields.filter(x => !partitionsSet(x.name)).map(_.name)
-        .appendedAll(this.partitionColumns)
+      (this.partitionColumns++:this.fields.filter(x => !partitionsSet(x.name)).map(_.name))
         .mkString(",")
 
     }
